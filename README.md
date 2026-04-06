@@ -183,3 +183,4 @@ Modèles alternatifs (Apache 2.0) :
 | Qwen2.5-7B | Apache 2.0 |
 | Mistral-7B | Apache 2.0 |
 # RAG
+# RAG
