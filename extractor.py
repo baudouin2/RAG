@@ -173,7 +173,7 @@ def extraire_chunks(pdf_path: Path) -> List[Dict]:
     doc_name   = pdf_path.name
     doc        = fitz.open(str(pdf_path))
     nb_pages   = len(doc)
-    regime     = _determiner_regime(nb_pages)
+    regime     = "page"
 
     # Extraction texte brut par page (1-based physique)
     textes_pages: Dict[int, str] = {}
@@ -185,110 +185,28 @@ def extraire_chunks(pdf_path: Path) -> List[Dict]:
     sections = extraire_sections_par_page(doc)  # {0-based: section}
 
     chunks = []
+    for page_num in sorted(textes_pages.keys()):
+        page_idx   = page_num - 1
+        texte_page = textes_pages[page_num]
+        est_vide   = len(texte_page) < SEUIL_PAGE_VIDE
+        section    = sections.get(page_idx, "")
 
-    # ── Régime 1 : document court (1–3 pages) ───────────────────────────────
-    if regime == "court":
-        # Un seul chunk = tout le document
-        texte_complet = "\n\n".join(
-            textes_pages[p] for p in sorted(textes_pages)
-            if textes_pages[p]
-        )
-        section_doc = sections.get(0, "")
+        prefixe       = construire_prefixe(doc_name, section, page_num, nb_pages)
+        texte_enrichi = prefixe + texte_page
 
-        # On génère une entrée par page pour respecter le format challenge,
-        # mais l'embedding est fait sur le texte complet enrichi.
-        for page_idx in range(nb_pages):
-            page_num = page_idx + 1
-            texte_page = textes_pages[page_num]
-            est_vide = len(texte_page) < SEUIL_PAGE_VIDE
-
-            # Pour l'embedding on utilise le texte du document entier enrichi
-            prefixe = construire_prefixe(doc_name, section_doc, page_num, nb_pages)
-            texte_enrichi = prefixe + texte_complet  # contexte global
-
-            chunks.append({
-                "doc_name"      : doc_name,
-                "page"          : page_num,
-                "section"       : section_doc,
-                "nb_pages_doc"  : nb_pages,
-                "regime"        : regime,
-                "texte_enrichi" : texte_enrichi,
-                "texte_brut"    : texte_page or texte_complet,
-                "est_vide"      : est_vide,
-            })
-
-    # ── Régime 2 : document moyen (4–15 pages) ──────────────────────────────
-    elif regime == "moyen":
-        for page_num in sorted(textes_pages.keys()):
-            page_idx  = page_num - 1
-            texte_page = textes_pages[page_num]
-            est_vide   = len(texte_page) < SEUIL_PAGE_VIDE
-            section    = sections.get(page_idx, "")
-
-            prefixe       = construire_prefixe(doc_name, section, page_num, nb_pages)
-            texte_enrichi = prefixe + texte_page
-
-            chunks.append({
-                "doc_name"      : doc_name,
-                "page"          : page_num,
-                "section"       : section,
-                "nb_pages_doc"  : nb_pages,
-                "regime"        : regime,
-                "texte_enrichi" : texte_enrichi,
-                "texte_brut"    : texte_page,
-                "est_vide"      : est_vide,
-            })
-
-    # ── Régime 3 : document long (> 15 pages) ───────────────────────────────
-    elif regime == "long":
-        for page_num in sorted(textes_pages.keys()):
-            page_idx   = page_num - 1
-            texte_page = textes_pages[page_num]
-            est_vide   = len(texte_page) < SEUIL_PAGE_VIDE
-            section    = sections.get(page_idx, "")
-
-            # Overlap : queue de la page précédente + tête de la page suivante
-            overlap_avant = ""
-            if page_num > 1 and textes_pages.get(page_num - 1):
-                overlap_avant = (
-                    tronquer_tokens(textes_pages[page_num - 1], TOKENS_OVERLAP, depuis_fin=True)
-                    + "\n"
-                )
-
-            overlap_apres = ""
-            if page_num < nb_pages and textes_pages.get(page_num + 1):
-                overlap_apres = (
-                    "\n" +
-                    tronquer_tokens(textes_pages[page_num + 1], TOKENS_OVERLAP, depuis_fin=False)
-                )
-
-            texte_avec_overlap = overlap_avant + texte_page + overlap_apres
-
-            prefixe       = construire_prefixe(doc_name, section, page_num, nb_pages)
-            texte_enrichi = prefixe + texte_avec_overlap
-
-            chunks.append({
-                "doc_name"      : doc_name,
-                "page"          : page_num,
-                "section"       : section,
-                "nb_pages_doc"  : nb_pages,
-                "regime"        : regime,
-                "texte_enrichi" : texte_enrichi,
-                "texte_brut"    : texte_page,  # texte propre pour le LLM
-                "est_vide"      : est_vide,
-            })
+        chunks.append({
+            "doc_name"      : doc_name,
+            "page"          : page_num,
+            "section"       : section,
+            "nb_pages_doc"  : nb_pages,
+            "regime"        : regime,
+            "texte_enrichi" : texte_enrichi,
+            "texte_brut"    : texte_page,
+            "est_vide"      : est_vide,
+        })
 
     doc.close()
     return chunks
-
-
-def _determiner_regime(nb_pages: int) -> str:
-    if nb_pages <= 3:
-        return "court"
-    elif nb_pages <= 15:
-        return "moyen"
-    else:
-        return "long"
 
 
 # ──────────────────────────────────────────────

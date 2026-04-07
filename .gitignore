@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.Python
+venv/
+env/
+ENV/
+
+# Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Project-specific
+index/
+index_*
+*.pkl
+*.index
+logs/
+*.log
+soumission_*.json
+
+# OS
+.DS_Store
+Thumbs.db
